@@ -1,0 +1,725 @@
+---
+alwaysApply: true
+---
+## Code Style and Formatting
+
+### PEP 8 Compliance
+- **FOLLOW** PEP 8 style guide strictly
+- **USE** 4 spaces for indentation (never tabs)
+- **LIMIT** lines to 88 characters (Black formatter default)
+- **USE** descriptive variable and function names (snake_case)
+- **USE** PascalCase for class names
+
+### Code Formatting Tools
+- **USE** Black for code formatting (line length: 88)
+- **USE** isort for import sorting
+- **USE** flake8 or ruff for linting
+- **CONFIGURE** these tools in `pyproject.toml` or `.flake8`
+
+### Import Organization
+```python
+# Standard library imports
+import os
+import sys
+from typing import List, Optional
+
+# Third-party imports
+import requests
+from pydantic import BaseModel
+
+# Local application imports
+from .models import User
+from .utils import helper_function
+```
+
+**RULES:**
+- Group imports: stdlib, third-party, local
+- Use absolute imports when possible
+- Avoid `from module import *`
+- Sort imports alphabetically within groups
+
+### Naming Conventions
+- **Functions/Methods:** `snake_case` (e.g., `get_user_data`)
+- **Classes:** `PascalCase` (e.g., `UserManager`)
+- **Constants:** `UPPER_SNAKE_CASE` (e.g., `MAX_RETRIES`)
+- **Protected/Internal:** Prefix with `_` (e.g., `_internal_method`) - weak convention, indicates internal use
+- **Private:** Prefix with `__` (e.g., `__private_attribute`) - triggers name mangling for true privacy
+
+---
+
+## Project Structure
+
+### Recommended Directory Layout
+```
+project_root/
+├── .vscode/              # VS Code settings (committed)
+├── .github/              # GitHub workflows and templates
+├── src/                  # Source code (if building a package)
+│   ├── __init__.py
+│   └── main_module/
+│       ├── __init__.py
+│       ├── models.py
+│       ├── services.py
+│       └── utils.py
+├── tests/                # Test files
+│   ├── __init__.py
+│   ├── test_models.py
+│   └── test_services.py
+├── docs/                 # Documentation
+├── scripts/              # Utility scripts
+├── .env.example          # Environment variable template
+├── .gitignore           # Git ignore rules
+├── requirements.txt     # Production dependencies
+├── requirements-dev.txt # Development dependencies
+├── pyproject.toml       # Project configuration
+├── README.md            # Project documentation
+└── AGENTS.md            # This file
+```
+
+### File Organization Rules
+- **ONE** class per file (unless classes are closely related)
+- **GROUP** related functions in modules
+- **KEEP** files focused and under 300 lines when possible
+- **USE** `__init__.py` to expose public API
+- **SEPARATE** concerns: models, services, utilities, handlers
+
+---
+
+## Dependencies Management
+
+### Requirements Files
+- **MAINTAIN** `requirements.txt` for production dependencies
+- **MAINTAIN** `requirements-dev.txt` for development tools
+- **PIN** versions for production: `package==1.2.3`
+- **USE** ranges for development: `package>=1.2.0,<2.0.0`
+- **UPDATE** requirements.txt after installing new packages
+
+### Dependency Installation
+```bash
+# Install production dependencies
+pip install -r requirements.txt
+
+# Install development dependencies
+pip install -r requirements-dev.txt
+
+# After installing a new package
+pip install <package-name>
+pip freeze > requirements.txt  # Update requirements
+```
+
+### Dependency Rules
+- **AVOID** unnecessary dependencies
+- **PREFER** standard library when possible
+- **EVALUATE** security and maintenance status of packages
+- **DOCUMENT** why each dependency is needed
+- **USE** `pip-tools` or `poetry` for complex dependency management
+
+### Version Pinning Strategy
+- **PIN** exact versions in production: `requests==2.31.0`
+- **ALLOW** minor updates in development: `requests>=2.31.0,<3.0.0`
+- **REVIEW** and update dependencies regularly for security patches
+
+---
+
+## Type Hints and Annotations
+
+### Type Hints Requirements
+- **USE** type hints for all function parameters and return values
+- **USE** `typing` module for complex types
+- **USE** `Optional[T]` for nullable values
+- **USE** `Union[T1, T2]` for multiple possible types
+- **USE** `List[T]`, `Dict[K, V]` for collections (Python < 3.9) or `list[T]`, `dict[K, V]` (Python 3.9+)
+
+### Type Hint Examples
+```python
+from typing import List, Optional, Dict, Union
+from datetime import datetime
+
+def process_users(
+    user_ids: List[int],
+    include_inactive: bool = False,
+    limit: Optional[int] = None
+) -> Dict[str, Union[str, datetime]]:
+    """Process a list of user IDs and return user data."""
+    pass
+
+class UserManager:
+    def get_user(self, user_id: int) -> Optional[User]:
+        """Retrieve a user by ID."""
+        pass
+    
+    def create_user(self, data: Dict[str, str]) -> User:
+        """Create a new user."""
+        pass
+```
+
+### When to Use Type Hints
+- **ALWAYS** for public APIs
+- **ALWAYS** for function signatures
+- **ALWAYS** for class attributes (use `ClassVar` for class variables)
+- **CONSIDER** for complex internal functions
+- **USE** `# type: ignore` sparingly and document why
+
+---
+
+## Error Handling
+
+### Exception Handling Best Practices
+- **USE** specific exception types, not bare `except:`
+- **CATCH** exceptions at the appropriate level
+- **LOG** exceptions with context before re-raising
+- **PROVIDE** meaningful error messages
+- **USE** custom exceptions for domain-specific errors
+
+### Exception Handling Pattern
+```python
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+class CustomError(Exception):
+    """Base exception for custom errors."""
+    pass
+
+class UserNotFoundError(CustomError):
+    """Raised when a user cannot be found."""
+    pass
+
+def get_user(user_id: int) -> Optional[User]:
+    """Retrieve a user by ID with proper error handling."""
+    try:
+        user = fetch_user_from_db(user_id)
+        if user is None:
+            raise UserNotFoundError(f"User {user_id} not found")
+        return user
+    except DatabaseError as e:
+        logger.error(f"Database error while fetching user {user_id}: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error fetching user {user_id}: {e}")
+        raise CustomError(f"Failed to retrieve user {user_id}") from e
+```
+
+### Error Handling Rules
+- **NEVER** use bare `except:` clauses
+- **ALWAYS** log exceptions before handling or re-raising
+- **USE** exception chaining (`raise ... from e`)
+- **PROVIDE** context in error messages
+- **CREATE** custom exceptions for domain logic
+
+---
+
+## Documentation Standards
+
+### Docstrings
+- **USE** Google-style docstrings (preferred) or NumPy style
+- **DOCUMENT** all public functions, classes, and modules
+- **INCLUDE** parameter descriptions, return values, and exceptions
+- **PROVIDE** usage examples for complex functions
+
+### Docstring Template
+```python
+def process_data(
+    data: List[Dict[str, Any]],
+    validate: bool = True,
+    timeout: Optional[int] = None
+) -> ProcessedResult:
+    """Process a list of data dictionaries.
+    
+    This function processes input data, validates it if requested,
+    and returns a processed result object.
+    
+    Args:
+        data: List of dictionaries containing data to process.
+            Each dictionary must have 'id' and 'value' keys.
+        validate: If True, validate data before processing. Defaults to True.
+        timeout: Maximum time in seconds to wait for processing.
+            If None, uses default timeout.
+    
+    Returns:
+        ProcessedResult object containing processed data and metadata.
+    
+    Raises:
+        ValidationError: If validation fails and validate=True.
+        TimeoutError: If processing exceeds timeout.
+        ValueError: If data format is invalid.
+    
+    Example:
+        >>> data = [{'id': 1, 'value': 'test'}]
+        >>> result = process_data(data, validate=True)
+        >>> print(result.status)
+        'success'
+    """
+    pass
+```
+
+### Module Documentation
+- **INCLUDE** module-level docstrings explaining purpose
+- **LIST** main exports in `__init__.py`
+- **DOCUMENT** module-level constants and variables
+
+### Comments
+- **EXPLAIN** "why", not "what" (code should be self-explanatory)
+- **USE** comments for complex algorithms or business logic
+- **AVOID** obvious comments that restate the code
+- **UPDATE** comments when code changes
+
+---
+
+## Testing Guidelines
+
+### Test Structure
+- **ORGANIZE** tests mirroring source code structure
+- **NAME** test files: `test_<module_name>.py`
+- **NAME** test functions: `test_<functionality>_<scenario>`
+- **USE** descriptive test names that explain what is being tested
+
+### Testing Framework
+- **USE** pytest as the primary testing framework
+- **USE** pytest fixtures for test setup and teardown
+- **USE** pytest.mark for test categorization
+- **AIM** for >80% code coverage
+
+### Test Examples
+```python
+import pytest
+from unittest.mock import Mock, patch
+from src.services import UserService
+from src.exceptions import UserNotFoundError
+
+class TestUserService:
+    """Test suite for UserService."""
+    
+    @pytest.fixture
+    def user_service(self):
+        """Create a UserService instance for testing."""
+        return UserService()
+    
+    @pytest.fixture
+    def sample_user(self):
+        """Create a sample user for testing."""
+        return {'id': 1, 'name': 'Test User', 'email': 'test@example.com'}
+    
+    def test_get_user_success(self, user_service, sample_user):
+        """Test successful user retrieval."""
+        with patch('src.services.db') as mock_db:
+            mock_db.get_user.return_value = sample_user
+            result = user_service.get_user(1)
+            assert result == sample_user
+            mock_db.get_user.assert_called_once_with(1)
+    
+    def test_get_user_not_found(self, user_service):
+        """Test user not found scenario."""
+        with patch('src.services.db') as mock_db:
+            mock_db.get_user.return_value = None
+            with pytest.raises(UserNotFoundError):
+                user_service.get_user(999)
+    
+    @pytest.mark.parametrize(\"user_id,expected\", [
+        (1, True),
+        (2, True),
+        (999, False),
+    ])
+    def test_user_exists(self, user_service, user_id, expected):
+        """Test user existence check with multiple scenarios."""
+        with patch('src.services.db') as mock_db:
+            mock_db.user_exists.return_value = expected
+            result = user_service.user_exists(user_id)
+            assert result == expected
+```
+
+### Testing Rules
+- **WRITE** tests before or alongside code (TDD when possible)
+- **TEST** edge cases and error conditions
+- **USE** mocking for external dependencies
+- **KEEP** tests independent and isolated
+- **RUN** tests before committing code
+- **MAINTAIN** test coverage reports
+
+### Running Tests
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+
+# Run specific test file
+pytest tests/test_services.py
+
+# Run specific test
+pytest tests/test_services.py::TestUserService::test_get_user_success
+```
+
+---
+
+## Security Best Practices
+
+### Input Validation
+- **VALIDATE** all user inputs
+- **SANITIZE** data before processing
+- **USE** parameterized queries for database operations
+- **VALIDATE** file paths and prevent directory traversal
+
+### Secrets Management
+- **NEVER** commit secrets, API keys, or credentials
+- **USE** environment variables for sensitive data
+- **USE** `.env` files (excluded from git)
+- **ROTATE** credentials regularly
+- **USE** secret management services for production
+
+### Security Checklist
+- [ ] No hardcoded credentials or API keys
+- [ ] Input validation on all user inputs
+- [ ] SQL injection prevention (use parameterized queries)
+- [ ] XSS prevention (sanitize outputs)
+- [ ] CSRF protection for web applications
+- [ ] Secure password handling (hashing, not plaintext)
+- [ ] HTTPS for all external communications
+- [ ] Regular dependency updates for security patches
+
+### Example: Secure Configuration
+```python
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
+
+# Access secrets securely
+API_KEY = os.getenv('API_KEY')
+if not API_KEY:
+    raise ValueError(\"API_KEY environment variable is required\")
+
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///default.db')
+```
+
+---
+
+## Performance Considerations
+
+### Code Optimization
+- **PROFILE** before optimizing (measure first)
+- **USE** appropriate data structures
+- **AVOID** premature optimization
+- **CONSIDER** caching for expensive operations
+- **USE** generators for large datasets
+
+### Performance Patterns
+```python
+# Use generators for memory efficiency
+def process_large_file(file_path: str):
+    """Process large file without loading into memory."""
+    with open(file_path, 'r') as f:
+        for line in f:
+            yield process_line(line)
+
+# Use list comprehensions for simple transformations
+squares = [x**2 for x in range(10) if x % 2 == 0]
+
+# Use set for membership testing (O(1) vs O(n) for list)
+valid_ids = {1, 2, 3, 4, 5}
+if user_id in valid_ids:  # Fast lookup
+    process_user(user_id)
+```
+
+### Async Programming
+- **USE** `asyncio` for I/O-bound operations
+- **USE** `async/await` for concurrent operations
+- **CONSIDER** `aiohttp` for async HTTP requests
+- **UNDERSTAND** when async is beneficial vs overhead
+
+---
+
+## Configuration Management
+
+### Configuration Files
+- **USE** `pyproject.toml` for project configuration
+- **USE** `.env` files for environment-specific settings
+- **USE** YAML or JSON for complex configurations
+- **VALIDATE** configuration on startup
+
+### Configuration Pattern
+```python
+from pydantic import BaseSettings, Field
+from typing import Optional
+
+class Settings(BaseSettings):
+    """Application settings."""
+    
+    app_name: str = Field(default=\"VISA Zephyr PoC\", env=\"APP_NAME\")
+    debug: bool = Field(default=False, env=\"DEBUG\")
+    database_url: str = Field(..., env=\"DATABASE_URL\")
+    api_key: str = Field(..., env=\"API_KEY\")
+    max_retries: int = Field(default=3, env=\"MAX_RETRIES\")
+    
+    class Config:
+        env_file = \".env\"
+        env_file_encoding = \"utf-8\"
+
+# Usage
+settings = Settings()
+```
+
+### Configuration Rules
+- **SEPARATE** development, staging, and production configs
+- **VALIDATE** configuration at startup
+- **USE** type-safe configuration classes (Pydantic)
+- **DOCUMENT** all configuration options
+
+---
+
+## Git and Version Control
+
+### Commit Messages
+- **USE** clear, descriptive commit messages
+- **FOLLOW** conventional commits format:
+  - `feat:` for new features
+  - `fix:` for bug fixes
+  - `docs:` for documentation
+  - `refactor:` for code refactoring
+  - `test:` for tests
+  - `chore:` for maintenance
+
+### Commit Message Format
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+Example:
+```
+feat(auth): add user authentication service
+
+Implement JWT-based authentication with refresh tokens.
+Add UserService class with login, logout, and token refresh methods.
+
+Closes #123
+```
+
+### Git Workflow Rules
+- **COMMIT** frequently with meaningful messages
+- **BRANCH** for features (`feature/feature-name`)
+- **NEVER** commit sensitive data
+- **USE** `.gitignore` appropriately
+- **REVIEW** changes before committing
+
+### Files to Never Commit
+- Virtual environments (`venv/`, `env/`)
+- Python cache (`__pycache__/`, `*.pyc`)
+- Environment files (`.env`)
+- IDE settings (unless project-specific)
+- OS files (`.DS_Store`, `Thumbs.db`)
+
+---
+
+## Code Review Checklist
+
+When generating or modifying code, ensure:
+
+### Functionality
+- [ ] Code meets requirements and specifications
+- [ ] Edge cases are handled
+- [ ] Error handling is appropriate
+- [ ] No hardcoded values or magic numbers
+
+### Code Quality
+- [ ] Follows PEP 8 style guide
+- [ ] Type hints are present and correct
+- [ ] Functions are focused and single-purpose
+- [ ] Code is readable and maintainable
+- [ ] No code duplication (DRY principle)
+
+### Documentation
+- [ ] Docstrings are present and complete
+- [ ] Comments explain \"why\", not \"what\"
+- [ ] README is updated if needed
+- [ ] Complex logic is documented
+
+### Testing
+- [ ] Tests are written and passing
+- [ ] Edge cases are tested
+- [ ] Mocking is used appropriately
+- [ ] Test coverage is adequate
+
+### Security
+- [ ] No secrets or credentials in code
+- [ ] Input validation is present
+- [ ] SQL injection prevention
+- [ ] Dependencies are up-to-date
+
+### Performance
+- [ ] No obvious performance issues
+- [ ] Appropriate data structures used
+- [ ] Database queries are optimized
+- [ ] Caching is used where appropriate
+
+---
+
+## Project-Specific Guidelines
+
+### Zephyr Integration
+- **FOLLOW** Zephyr API best practices
+- **HANDLE** API rate limits appropriately
+- **IMPLEMENT** retry logic with exponential backoff
+- **LOG** all API interactions for debugging
+
+### QA/Testing Focus
+- **MAINTAIN** high test coverage
+- **DOCUMENT** test scenarios and cases
+- **INTEGRATE** with Zephyr test management
+- **TRACK** test execution and results
+
+### GenAI Considerations
+- **VALIDATE** AI-generated content
+- **IMPLEMENT** proper error handling for AI APIs
+- **LOG** AI interactions for audit purposes
+- **HANDLE** rate limits and quotas
+
+---
+
+## Tool Configuration
+
+### Recommended Tools
+- **Formatter:** Black (line length: 88)
+- **Linter:** ruff or flake8
+- **Import Sorter:** isort
+- **Type Checker:** mypy
+- **Testing:** pytest
+- **Coverage:** pytest-cov
+- **Documentation:** Sphinx or MkDocs
+
+### Example `pyproject.toml`
+```toml
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\\.pyi?$'
+
+[tool.isort]
+profile = \"black\"
+line_length = 88
+
+[tool.mypy]
+python_version = \"3.11\"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = [\"tests\"]
+python_files = [\"test_*.py\"]
+python_classes = [\"Test*\"]
+python_functions = [\"test_*\"]
+addopts = \"-v --cov=src --cov-report=html --cov-report=term\"
+```
+
+---
+
+## Common Patterns and Anti-Patterns
+
+### ✅ Good Patterns
+```python
+# Type hints
+def get_user(user_id: int) -> Optional[User]:
+    pass
+
+# Context managers for resources
+with open('file.txt', 'r') as f:
+    content = f.read()
+
+# List comprehensions
+squares = [x**2 for x in range(10) if x % 2 == 0]
+
+# F-strings for formatting
+message = f\"User {user_id} not found\"
+
+# Enums for constants
+from enum import Enum
+
+class Status(Enum):
+    ACTIVE = \"active\"
+    INACTIVE = \"inactive\"
+```
+
+### ❌ Anti-Patterns to Avoid
+```python
+# Don't use bare except
+try:
+    process()
+except:  # BAD
+    pass
+
+# Don't use mutable default arguments
+def append_item(item, items=[]):  # BAD
+    items.append(item)
+    return items
+
+# Don't compare with == None, use is None
+if value == None:  # BAD
+    pass
+
+# Don't use string concatenation in loops
+result = \"\"
+for item in items:  # BAD
+    result += item
+
+# Don't ignore exceptions silently
+try:
+    risky_operation()
+except Exception:  # BAD - no logging or handling
+    pass
+```
+
+---
+
+## Quick Reference
+
+### Before Committing Code
+1. ✅ Run formatter: `black .`
+2. ✅ Run linter: `ruff check .` or `flake8 .`
+3. ✅ Run type checker: `mypy .`
+4. ✅ Run tests: `pytest`
+5. ✅ Check coverage: `pytest --cov`
+6. ✅ Update requirements: `pip freeze > requirements.txt`
+7. ✅ Review changes: `git diff`
+8. ✅ Write meaningful commit message
+
+### When Adding New Features
+1. ✅ Create feature branch
+2. ✅ Write tests first (TDD)
+3. ✅ Implement feature
+4. ✅ Add type hints
+5. ✅ Write docstrings
+6. ✅ Update documentation
+7. ✅ Run all checks
+8. ✅ Create pull request
+
+### When Fixing Bugs
+1. ✅ Write failing test
+2. ✅ Fix the bug
+3. ✅ Verify test passes
+4. ✅ Check for similar issues
+5. ✅ Update documentation if needed
+6. ✅ Run all checks
+
+---
+
+## Additional Resources
+
+- [PEP 8 Style Guide](https://pep8.org/)
+- [Python Type Hints](https://docs.python.org/3/library/typing.html)
+- [pytest Documentation](https://docs.pytest.org/)
+- [Black Code Formatter](https://black.readthedocs.io/)
+- [mypy Type Checker](https://mypy.readthedocs.io/)
+- [Python Security Best Practices](https://python.readthedocs.io/en/stable/library/security_warnings.html)
+
+---
+
+**Note:** This document should be updated as the project evolves and new patterns emerge. All AI agents working on this project should follow these guidelines consistently.
