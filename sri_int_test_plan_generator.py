@@ -614,6 +614,46 @@ def _render_list(items: Iterable[str]) -> str:
     return "".join(f"<li>{html.escape(item)}</li>" for item in items)
 
 
+def _render_test_case(test_case: TestCase) -> str:
+    """Render a single test case as HTML.
+
+    Args:
+        test_case: TestCase object to render.
+
+    Returns:
+        HTML string for the test case.
+    """
+    steps_html = []
+    for step in test_case.steps:
+        steps_html.append(
+            "<li>"
+            f"<div class=\"step-desc\">"
+            f"{html.escape(step.description)}</div>"
+            f"<div class=\"step-expected\"><strong>Expected:</strong> "
+            f"{html.escape(step.expected_result)}</div>"
+            f"<div class=\"step-data\"><strong>Suggested data "
+            f"format:</strong> "
+            f"{html.escape(step.suggested_data_format)}</div>"
+            "</li>"
+        )
+
+    return (
+        "<article class=\"test-case\">"
+        f"<h3>{html.escape(test_case.case_id)}: "
+        f"{html.escape(test_case.title)}</h3>"
+        f"<p><strong>Purpose:</strong> "
+        f"{html.escape(test_case.purpose)}</p>"
+        f"<p><strong>Traceability:</strong> "
+        f"{html.escape(test_case.trace_to_flow)}</p>"
+        "<p><strong>Test data notes:</strong></p>"
+        f"<ul>{_render_list(test_case.data_notes)}</ul>"
+        "<ol class=\"steps\">"
+        f"{''.join(steps_html)}"
+        "</ol>"
+        "</article>"
+    )
+
+
 def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
     """Render the full HTML report for the integration test plan.
 
@@ -648,37 +688,7 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
         f"<ul>{_render_list(plan.assumptions)}</ul>"
     )
 
-    test_cases_html = []
-    for test_case in plan.test_cases:
-        steps_html = []
-        for step in test_case.steps:
-            steps_html.append(
-                "<li>"
-                f"<div class=\"step-desc\">"
-                f"{html.escape(step.description)}</div>"
-                f"<div class=\"step-expected\"><strong>Expected:</strong> "
-                f"{html.escape(step.expected_result)}</div>"
-                f"<div class=\"step-data\"><strong>Suggested data "
-                f"format:</strong> "
-                f"{html.escape(step.suggested_data_format)}</div>"
-                "</li>"
-            )
-
-        test_cases_html.append(
-            "<article class=\"test-case\">"
-            f"<h3>{html.escape(test_case.case_id)}: "
-            f"{html.escape(test_case.title)}</h3>"
-            f"<p><strong>Purpose:</strong> "
-            f"{html.escape(test_case.purpose)}</p>"
-            f"<p><strong>Traceability:</strong> "
-            f"{html.escape(test_case.trace_to_flow)}</p>"
-            "<p><strong>Test data notes:</strong></p>"
-            f"<ul>{_render_list(test_case.data_notes)}</ul>"
-            "<ol class=\"steps\">"
-            f"{''.join(steps_html)}"
-            "</ol>"
-            "</article>"
-        )
+    test_cases_html = [_render_test_case(tc) for tc in plan.test_cases]
 
     return f"""
 <!DOCTYPE html>
