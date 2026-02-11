@@ -51,6 +51,16 @@ The application generates `sri_int_test_plan.html` in the project root directory
 
 - Python 3.11 or higher
 - The `SRI_Integration_Diagram.png` file must be present in the project root directory
+- Optional: Confluence publishing requires environment variables:
+  - `CONFLUENCE_BASE_URL` (e.g., `https://netreveal.atlassian.net`)
+  - `CONFLUENCE_USER_EMAIL`
+  - `CONFLUENCE_API_TOKEN`
+  - `CONFLUENCE_SPACE_KEY` (defaults to `HARMONY`)
+  - `CONFLUENCE_PARENT_PAGE_ID` (defaults to `949420050`)
+  The application attempts to load these values from
+  `C:\Sensa_NR\2025\QA\GenAI\AINative_Env\.env` if present.
+  If these values are not set, the report still generates and Confluence
+  publishing is skipped.
 
 ### Running the Application
 
@@ -61,8 +71,9 @@ python sri_int_test_plan_generator.py
 The application will:
 1. Load the integration diagram from `SRI_Integration_Diagram.png`
 2. Build the test plan data structure
-3. Generate the HTML report
-4. Write the output to `sri_int_test_plan.html`
+3. Publish the report to Confluence when credentials are provided
+4. Generate the HTML report (including a Confluence link when published)
+5. Write the output to `sri_int_test_plan.html`
 
 ### Output
 
@@ -71,6 +82,7 @@ Upon successful execution, the application creates `sri_int_test_plan.html` cont
 - Embedded integration architecture diagram
 - Nine detailed test cases with execution steps
 - Timestamp indicating when the report was generated
+- A link to the Confluence report when publishing is enabled
 
 ## Project Structure
 

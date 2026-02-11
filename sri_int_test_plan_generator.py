@@ -9,11 +9,15 @@ from __future__ import annotations
 
 import base64
 import html
+import json
 import logging
+import os
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 LOGGER = logging.getLogger(__name__)
 
@@ -21,6 +25,16 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 DIAGRAM_FILENAME = "SRI_Integration_Diagram.png"
 REPORT_FILENAME = "sri_int_test_plan.html"
 AUTHOR_NAME = "Ciaran Finnegan"
+CONFLUENCE_REPORT_TITLE = "SRI AML GA Integration Test Plan Report"
+CONFLUENCE_PARENT_PAGE_ID = "949420050"
+CONFLUENCE_SPACE_KEY = "HARMONY"
+CONFLUENCE_ENV_FILE = Path(
+    r"C:\Sensa_NR\2025\QA\GenAI\AINative_Env\.env"
+)
+CONFLUENCE_ARCHITECTURE_PAGE_URL = (
+    "https://netreveal.atlassian.net/wiki/spaces/HARMONY/pages/949420050/"
+    "Sensa+Risk+Intelligence+-+SRI+AML+GA+Architecture"
+)
 
 
 class PlanGenerationError(RuntimeError):
@@ -37,6 +51,10 @@ class ReportWriteError(PlanGenerationError):
 
 class RenderError(PlanGenerationError):
     """Raised when the HTML report cannot be rendered."""
+
+
+class ConfluencePublishError(PlanGenerationError):
+    """Raised when the Confluence report cannot be published."""
 
 
 @dataclass(frozen=True)
@@ -94,6 +112,280 @@ class TestPlan:
     report_date: str
     objective: str
     sections: List[PlanSection]
+
+
+@dataclass(frozen=True)
+class ConfluenceConfig:
+    """Settings required to publish a report to Confluence."""
+
+    base_url: str
+    user_email: str
+    api_token: str
+    space_key: str
+    parent_page_id: str
+
+
+def _normalize_base_url(base_url: str) -> str:
+    """Normalize the Confluence base URL for API usage."""
+    cleaned = base_url.rstrip("/")
+    if cleaned.endswith("/wiki"):
+        cleaned = cleaned[:-5]
+    return cleaned
+
+
+def load_env_file(env_path: Path) -> None:
+    """Load environment variables from a .env file.
+
+    Args:
+        env_path: Path to the .env file.
+    """
+    if not env_path.exists():
+        LOGGER.info("Confluence env file not found at %s", env_path)
+        return
+
+    try:
+        contents = env_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        LOGGER.warning("Failed to read env file at %s: %s", env_path, exc)
+        return
+
+    for line in contents.splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped.lower().startswith("export "):
+            stripped = stripped[7:].strip()
+        if "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if not key:
+            continue
+        if (
+            len(value) >= 2
+            and value[0] == value[-1]
+            and value[0] in {"'", '"'}
+        ):
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+def load_confluence_config() -> Optional[ConfluenceConfig]:
+    """Load Confluence configuration from environment variables.
+
+    Returns:
+        ConfluenceConfig if all required values are present, otherwise None.
+    """
+    load_env_file(CONFLUENCE_ENV_FILE)
+    base_url = os.getenv("CONFLUENCE_BASE_URL")
+    user_email = os.getenv("CONFLUENCE_USER_EMAIL")
+    api_token = os.getenv("CONFLUENCE_API_TOKEN")
+
+    if not base_url or not user_email or not api_token:
+        LOGGER.warning(
+            "Confluence publish skipped. Set CONFLUENCE_BASE_URL, "
+            "CONFLUENCE_USER_EMAIL, and CONFLUENCE_API_TOKEN to enable."
+        )
+        return None
+
+    space_key = os.getenv("CONFLUENCE_SPACE_KEY", CONFLUENCE_SPACE_KEY)
+    parent_page_id = os.getenv(
+        "CONFLUENCE_PARENT_PAGE_ID",
+        CONFLUENCE_PARENT_PAGE_ID,
+    )
+
+    return ConfluenceConfig(
+        base_url=_normalize_base_url(base_url),
+        user_email=user_email,
+        api_token=api_token,
+        space_key=space_key,
+        parent_page_id=parent_page_id,
+    )
+
+
+def _render_confluence_paragraphs(paragraphs: Iterable[str]) -> str:
+    """Render a list of paragraphs for Confluence storage format."""
+    return "".join(f"<p>{html.escape(text)}</p>" for text in paragraphs)
+
+
+def _render_confluence_test_case(test_case: TestCase) -> str:
+    """Render a Confluence-friendly block for a test case."""
+    steps_html = []
+    for step in test_case.steps:
+        steps_html.append(
+            "<li>"
+            f"<p><strong>Step:</strong> {html.escape(step.description)}</p>"
+            f"<p><strong>Expected:</strong> "
+            f"{html.escape(step.expected_result)}</p>"
+            f"<p><strong>Suggested data format:</strong> "
+            f"{html.escape(step.suggested_data_format)}</p>"
+            "</li>"
+        )
+
+    return (
+        "<div>"
+        f"<h4>{html.escape(test_case.case_id)}: "
+        f"{html.escape(test_case.title)}</h4>"
+        f"<p><strong>Purpose:</strong> "
+        f"{html.escape(test_case.purpose)}</p>"
+        f"<p><strong>Traceability:</strong> "
+        f"{html.escape(test_case.trace_to_flow)}</p>"
+        "<p><strong>Test data notes:</strong></p>"
+        f"<ul>{_render_list(test_case.data_notes)}</ul>"
+        "<ol>"
+        f"{''.join(steps_html)}"
+        "</ol>"
+        "</div>"
+    )
+
+
+def build_confluence_body(plan: TestPlan) -> str:
+    """Build a Confluence storage-format body for the report."""
+    sections_html = []
+    for section in plan.sections:
+        sections_html.append(f"<h2>{html.escape(section.title)}</h2>")
+        if section.description:
+            sections_html.append(_render_confluence_paragraphs(section.description))
+
+        for title, bullets in section.strategy_sections:
+            sections_html.append(f"<h3>{html.escape(title)}</h3>")
+            sections_html.append(f"<ul>{_render_list(bullets)}</ul>")
+
+        if section.integration_flows:
+            sections_html.append("<h3>Integration Flows Under Test</h3>")
+            sections_html.append(
+                f"<ol>{_render_list(section.integration_flows)}</ol>"
+            )
+
+        if section.out_of_scope:
+            sections_html.append("<h3>Out of Scope</h3>")
+            sections_html.append(f"<ul>{_render_list(section.out_of_scope)}</ul>")
+
+        if section.assumptions:
+            sections_html.append("<h3>Assumptions</h3>")
+            sections_html.append(f"<ul>{_render_list(section.assumptions)}</ul>")
+
+        if section.test_cases:
+            sections_html.append("<h3>Test Cases</h3>")
+            sections_html.append(
+                "".join(
+                    _render_confluence_test_case(test_case)
+                    for test_case in section.test_cases
+                )
+            )
+
+    architecture_url = html.escape(
+        CONFLUENCE_ARCHITECTURE_PAGE_URL,
+        quote=True,
+    )
+
+    return (
+        f"<h1>{html.escape(plan.title)}</h1>"
+        f"<p><strong>Author:</strong> {html.escape(plan.author)}</p>"
+        f"<p><strong>Date:</strong> {html.escape(plan.report_date)}</p>"
+        f"<p><strong>Objective:</strong> {html.escape(plan.objective)}</p>"
+        f"<p><strong>Architecture reference:</strong> "
+        f"<a href=\"{architecture_url}\">"
+        "SRI AML GA Architecture</a></p>"
+        f"{''.join(sections_html)}"
+    )
+
+
+def create_confluence_page(
+    config: ConfluenceConfig,
+    title: str,
+    body: str,
+) -> str:
+    """Create a Confluence page and return its URL.
+
+    Args:
+        config: Confluence configuration settings.
+        title: Title of the new Confluence page.
+        body: Storage-format body for the page.
+
+    Returns:
+        URL of the created Confluence page.
+
+    Raises:
+        ConfluencePublishError: If the page cannot be created.
+    """
+    payload = {
+        "type": "page",
+        "title": title,
+        "ancestors": [{"id": config.parent_page_id}],
+        "space": {"key": config.space_key},
+        "body": {
+            "storage": {
+                "value": body,
+                "representation": "storage",
+            }
+        },
+    }
+
+    request_url = f"{config.base_url}/wiki/rest/api/content"
+    encoded_payload = json.dumps(payload).encode("utf-8")
+    auth_token = base64.b64encode(
+        f"{config.user_email}:{config.api_token}".encode("utf-8")
+    ).decode("ascii")
+    request = urllib.request.Request(
+        request_url,
+        data=encoded_payload,
+        method="POST",
+    )
+    request.add_header("Authorization", f"Basic {auth_token}")
+    request.add_header("Content-Type", "application/json")
+    request.add_header("Accept", "application/json")
+
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            response_body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore")
+        LOGGER.error(
+            "Confluence publish failed with status %s: %s",
+            exc.code,
+            error_body,
+        )
+        raise ConfluencePublishError(
+            f"Failed to publish Confluence page (HTTP {exc.code})."
+        ) from exc
+    except urllib.error.URLError as exc:
+        LOGGER.error("Confluence publish request failed: %s", exc)
+        raise ConfluencePublishError(
+            "Failed to connect to Confluence for publishing."
+        ) from exc
+
+    try:
+        payload_response = json.loads(response_body)
+        links = payload_response.get("_links", {})
+        web_ui = links.get("webui")
+        base_link = links.get("base") or config.base_url
+        if not web_ui:
+            raise KeyError("webui link not found")
+        return f"{base_link}{web_ui}"
+    except (json.JSONDecodeError, KeyError) as exc:
+        LOGGER.error(
+            "Unexpected Confluence response while creating page: %s",
+            response_body,
+        )
+        raise ConfluencePublishError(
+            "Failed to parse Confluence publish response."
+        ) from exc
+
+
+def publish_report_to_confluence(plan: TestPlan) -> Optional[str]:
+    """Publish the generated report to Confluence when configured."""
+    config = load_confluence_config()
+    if config is None:
+        return None
+
+    body = build_confluence_body(plan)
+    return create_confluence_page(
+        config=config,
+        title=CONFLUENCE_REPORT_TITLE,
+        body=body,
+    )
 
 
 def load_diagram_data_uri(diagram_path: Path) -> str:
@@ -1128,12 +1420,17 @@ def _render_section(section: PlanSection, diagram_data_uri: str) -> str:
         ) from exc
 
 
-def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
+def render_html(
+    plan: TestPlan,
+    diagram_data_uri: str,
+    confluence_url: Optional[str] = None,
+) -> str:
     """Render the full HTML report for the integration test plan.
 
     Args:
         plan: TestPlan data containing strategy and test cases.
         diagram_data_uri: Data URI for the integration diagram image.
+        confluence_url: Optional Confluence report URL to reference.
 
     Returns:
         HTML string containing the rendered report.
@@ -1149,6 +1446,14 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
     except Exception as exc:
         LOGGER.exception("Failed to render HTML report: %s", exc)
         raise RenderError("Failed to render HTML report.") from exc
+
+    confluence_link_html = " | Confluence report not published"
+    if confluence_url:
+        safe_url = html.escape(confluence_url, quote=True)
+        confluence_link_html = (
+            f" | <a href=\"{safe_url}\" target=\"_blank\" "
+            "rel=\"noopener\">Confluence report</a>"
+        )
 
     return f"""
 <!DOCTYPE html>
@@ -1285,6 +1590,7 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
   <h1>{html.escape(plan.title)}</h1>
   <p class="subtitle">
     Author: {html.escape(plan.author)} | Date: {html.escape(plan.report_date)}
+    {confluence_link_html}
   </p>
   <p><strong>Objective:</strong> {html.escape(plan.objective)}</p>
   {section_html}
@@ -1335,7 +1641,24 @@ def main() -> int:
     try:
         diagram_data_uri = load_diagram_data_uri(diagram_path)
         plan = build_test_plan()
-        html_report = render_html(plan, diagram_data_uri)
+        confluence_url = None
+        try:
+            confluence_url = publish_report_to_confluence(plan)
+        except ConfluencePublishError as exc:
+            LOGGER.warning(
+                "Confluence publish failed, continuing without link: %s",
+                exc,
+            )
+        except Exception as exc:
+            LOGGER.warning(
+                "Unexpected Confluence publish failure, continuing: %s",
+                exc,
+            )
+        html_report = render_html(
+            plan=plan,
+            diagram_data_uri=diagram_data_uri,
+            confluence_url=confluence_url,
+        )
         write_report(html_report, report_path)
     except PlanGenerationError as exc:
         LOGGER.exception("Plan generation failed: %s", exc)
