@@ -11,3 +11,10 @@
   integration section.
 - Enhanced the Day Zero/Day 1/Day 2 section diagrams with a stronger
   hand-drawn visual treatment.
+- Added stronger section demarcation and increased diagram focus for
+  Day Zero/Day 1/Day 2 sections via CSS and focus parameters.
+- Strengthened section borders and overlaid section titles on diagrams.
+- Increased hand-drawn styling and focus zoom for the Day Zero/Day 1/Day 2
+  section images.
+- Restored the High-Level section title by rendering an `<h2>` heading when
+  the overlay title is not used.

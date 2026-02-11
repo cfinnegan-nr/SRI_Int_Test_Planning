@@ -917,9 +917,9 @@ def build_test_plan() -> TestPlan:
                 "Day 2 execution.",
             ],
             image_focus=ImageFocus(
-                object_position="30% 45%",
-                scale=1.2,
-                height_px=260,
+                object_position="18% 46%",
+                scale=1.6,
+                height_px=280,
                 caption="Architecture focus: ingestion and detection readiness.",
             ),
             strategy_sections=[],
@@ -939,9 +939,9 @@ def build_test_plan() -> TestPlan:
                 "and AI assistant engagement.",
             ],
             image_focus=ImageFocus(
-                object_position="70% 45%",
-                scale=1.2,
-                height_px=260,
+                object_position="86% 46%",
+                scale=1.6,
+                height_px=280,
                 caption="Architecture focus: Detection, Investigation, Agents.",
             ),
             strategy_sections=[],
@@ -962,7 +962,7 @@ def build_test_plan() -> TestPlan:
             ],
             image_focus=ImageFocus(
                 object_position="50% 50%",
-                scale=1.0,
+                scale=1.25,
                 height_px=300,
                 caption="Architecture focus: full SRI AML GA integration.",
             ),
@@ -1053,6 +1053,9 @@ def _render_section_figure(section: PlanSection, diagram_data_uri: str) -> str:
     return (
         f"<figure class=\"section-figure{hand_drawn_class}\" style=\"{style}\">"
         "<div class=\"image-frame\">"
+        "<div class=\"section-title-overlay\">"
+        f"<h2>{html.escape(section.title)}</h2>"
+        "</div>"
         f"<img src=\"{diagram_data_uri}\" "
         f"alt=\"{html.escape(alt_text)}\" "
         "class=\"diagram-image\" />"
@@ -1102,10 +1105,14 @@ def _render_section(section: PlanSection, diagram_data_uri: str) -> str:
             test_case_items = [_render_test_case(tc) for tc in section.test_cases]
             test_cases_html = "".join(test_case_items)
 
+        section_heading_html = ""
+        if section.section_id == "high-level":
+            section_heading_html = f"<h2>{html.escape(section.title)}</h2>"
+
         return (
             f"<section id=\"{html.escape(section.section_id)}\">"
             f"{_render_section_figure(section, diagram_data_uri)}"
-            f"<h2>{html.escape(section.title)}</h2>"
+            f"{section_heading_html}"
             f"{description_html}"
             f"{''.join(strategy_html_parts)}"
             f"{integration_flows_html}"
@@ -1165,16 +1172,25 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
       margin-top: 0;
     }}
     section {{
-      margin-top: 24px;
+      margin-top: 32px;
+      padding: 24px;
+      border: 3px solid #334e68;
+      border-left-width: 10px;
+      background: #f8fafc;
+      box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+      border-radius: 10px;
+    }}
+    section:first-of-type {{
+      margin-top: 0;
     }}
     .section-figure {{
-      margin: 16px 0 24px 0;
+      margin: 0 0 24px 0;
       padding: 12px;
       border: 1px solid #d9e2ec;
-      background: #f8fafc;
+      background: #ffffff;
     }}
     .section-figure.hand-drawn {{
-      background: #fffaf0;
+      background: #fff7e6;
       border-style: dashed;
     }}
     .image-frame {{
@@ -1189,6 +1205,23 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
     .section-figure.hand-drawn .image-frame {{
       border-style: dashed;
       box-shadow: 0 3px 10px rgba(0, 0, 0, 0.12);
+    }}
+    .section-title-overlay {{
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(13, 27, 42, 0.85);
+      color: #ffffff;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      z-index: 2;
+      max-width: 75%;
+    }}
+    .section-title-overlay h2 {{
+      margin: 0;
+      font-size: 1.25rem;
+      letter-spacing: 0.3px;
     }}
     .section-figure.hand-drawn .image-frame::before {{
       content: "";
@@ -1227,7 +1260,8 @@ def render_html(plan: TestPlan, diagram_data_uri: str) -> str:
       filter: grayscale(0.1) contrast(1.2) brightness(1.05) saturate(0.9);
     }}
     .section-figure.hand-drawn .diagram-image {{
-      filter: grayscale(0.25) contrast(1.35) brightness(1.08) saturate(0.75);
+      filter: grayscale(0.45) contrast(1.6) brightness(1.15) saturate(0.6)
+        sepia(0.12);
     }}
     .test-case {{
       border: 1px solid #d9e2ec;
