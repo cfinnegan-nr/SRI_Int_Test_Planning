@@ -29,3 +29,27 @@
   `C:\Sensa_NR\2025\QA\GenAI\AINative_Env\.env` when present.
 - Fixed Confluence URL fallback to avoid duplicating `/wiki` when `_links.base`
   is missing in the API response.
+
+## 2026-02-12
+- Added DOCX parsing to extract I1-I7 phase descriptions using standard library
+  ZIP/XML parsing and mapped the phases into Day Zero/Day 1/Day 2 test cases.
+- Introduced per-section diagram assets including hand-drawn variants for the
+  Day Zero/Day 1/Day 2 sections and stronger sub-application focus via cropping.
+- Implemented section images and AI usage reporting in both HTML and Confluence
+  outputs, with section titles positioned above images and stronger borders.
+- Updated Confluence publishing to attach section images and update the
+  existing page `1249018170` instead of creating a new page.
+- Added Confluence update support with version lookup and attachment upload,
+  and ensured the HTML report links to the Confluence report URL.
+- Added a Confluence preflight access check to surface clearer permission
+  errors before attempting page updates or attachment uploads.
+- Removed the AI Usage Reporting section from HTML/Confluence outputs.
+- Enhanced Confluence error messages to include the user email and base URL.
+- Updated Confluence publish flow to delete the existing report page and
+  recreate it before uploading attachments.
+- Added Confluence validation that checks the report page URL matches the
+  configured page ID before attempting delete/recreate operations.
+- Added strict report URL matching against the expected constant and included
+  the report URL in Confluence access check errors.
+- Relaxed report URL validation to allow the environment override and only
+  enforce page ID consistency between the URL and configured page ID.
